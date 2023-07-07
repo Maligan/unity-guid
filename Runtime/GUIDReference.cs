@@ -17,6 +17,11 @@ public partial class GUIDReference
     [SerializeField] private string m_Scene;
     [SerializeField] private string m_GUID;
 
+    public void GetComponent<T>()
+    {
+        return GUIDComponent.Find<T>(m_GUID);
+    }
+
     public bool TryGetComponent<T>(out T value)
     {
         return (value = GUIDComponent.Find<T>(m_GUID)) != null;
