@@ -1,7 +1,6 @@
 using System;
 using UnityEngine;
 using System.Collections.Generic;
-using UnityEngine.Serialization;
 
 #if UNITY_EDITOR
 using UnityEditor;
@@ -15,6 +14,7 @@ public partial class GUIDComponent : MonoBehaviour
     private static Dictionary<string, GUIDComponent> sActive = new Dictionary<string, GUIDComponent>();
 
     public static GUIDComponent Find(string guid) => Find<GUIDComponent>(guid);
+
     public static T Find<T>(string guid)
     {
         if (sActive.TryGetValue(guid, out var component) && component != null)
@@ -25,17 +25,21 @@ public partial class GUIDComponent : MonoBehaviour
 
     public string Value => m_Value;
 
-    [SerializeField, FormerlySerializedAs("_value")]
+    [SerializeField]
     private string m_Value;
 
+    // NB! It's possible to load one scene multiple times
+    // so it's a valid situation to have GUIDs collision.
+    // TODO: How handle this scenario
     private void Awake() => sActive.TryAdd(m_Value, this);
+
     private void OnDestroy() => sActive.Remove(m_Value);
 }
 
 #if UNITY_EDITOR
 public partial class GUIDComponent
 {
-    [SerializeField, FormerlySerializedAs("_editorInstanceId1")]
+    [SerializeField]
     private int m_EditorInstanceId1;
     private int m_EditorInstanceId2;
     private string m_EditorValue;
@@ -49,8 +53,6 @@ public partial class GUIDComponent
     {
         if (IsInstance())
         {
-            sActive.Remove(m_Value);
-
             // in case object was duplicated (with Ctrl+D)
             if (IsDuplicate())
                 m_Value = string.Empty;
@@ -62,6 +64,8 @@ public partial class GUIDComponent
             if (string.IsNullOrEmpty(m_Value))
                 m_Value = Guid.NewGuid().ToString();
 
+            // we don't care about duplicates and/or previous values here
+            // this is just editor time and sActive is not serialized
             sActive.TryAdd(m_Value, this);
         }
         else
@@ -92,7 +96,6 @@ public partial class GUIDComponent
 
     private bool IsInstance()
     {
-        // [PrefabStage.IsPartOfPrefabContents]
         if (gameObject.scene.path == string.Empty)
             return false;
 

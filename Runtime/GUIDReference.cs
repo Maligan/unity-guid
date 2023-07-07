@@ -1,9 +1,9 @@
 using System;
-using System.Reflection;
 using UnityEngine;
-using System.Linq;
 
 #if UNITY_EDITOR
+using System.Reflection;
+using System.Linq;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 #endif
@@ -11,13 +11,13 @@ using UnityEditor.SceneManagement;
 [Serializable]
 public partial class GUIDReference
 {
-    public string Scene => m_Scene;
     public string GUID => m_GUID;
+    public string Scene => m_Scene;
 
-    [SerializeField] private string m_Scene;
     [SerializeField] private string m_GUID;
+    [SerializeField] private string m_Scene;
 
-    public void GetComponent<T>()
+    public T GetComponent<T>()
     {
         return GUIDComponent.Find<T>(m_GUID);
     }
@@ -33,7 +33,7 @@ public partial class GUIDReference
 public partial class GUIDReference : ISerializationCallbackReceiver
 {
     [SerializeField] private SceneAsset m_SceneAsset;
-    [SerializeField] private string m_Name;
+    [SerializeField] private string m_ObjectName;
 
     public void OnAfterDeserialize() { }
     public void OnBeforeSerialize()
@@ -45,8 +45,6 @@ public partial class GUIDReference : ISerializationCallbackReceiver
 [CustomPropertyDrawer(typeof(GUIDReference))]
 public class GUIDRefereceDrawer : PropertyDrawer
 {
-    private static GUIContent k_DropdownButtonContent = EditorGUIUtility.IconContent("_Menu");
-
     private static GUIStyle objectFieldButtonCache;
     private static GUIStyle objectFieldButton
     {
@@ -68,38 +66,47 @@ public class GUIDRefereceDrawer : PropertyDrawer
         var pSceneName = property.FindPropertyRelative("m_Scene");
         var pSceneAsset = property.FindPropertyRelative("m_SceneAsset");
         var pGUID = property.FindPropertyRelative("m_GUID");
-        var pName = property.FindPropertyRelative("m_Name");
-
-        var currentValue = GUIDComponent.Find(pGUID.stringValue);
+        var pName = property.FindPropertyRelative("m_ObjectName");
 
 
+        //
+        // Context Menu
+        //
         if (Event.current.type == EventType.ContextClick && position.Contains(Event.current.mousePosition))
         {
             GenericMenu context = new GenericMenu();
-            AddItem(context, EditorGUIUtility.TrTextContent("Copy GUID").text, CanCopyGUID(), CopyGUID);
+            AddItem(context, "Copy GUID", CanCopyGUID(), CopyGUID);
             context.AddSeparator(string.Empty);
-            AddItem(context, EditorGUIUtility.TrTextContent("Open Scene").text, CanOpenScene(), OpenScene);
-            AddItem(context, EditorGUIUtility.TrTextContent("Close Scene").text, CanCloseScene(), CloseScene);
+            AddItem(context, "Open Scene", CanOpenScene(), OpenScene);
+            AddItem(context, "Close Scene", CanCloseScene(), CloseScene);
             context.ShowAsContext();
             Event.current.Use();
             return;
         }
 
 
-        // [OBJECT]
-        if (!pGUID.hasMultipleDifferentValues && (currentValue != null || string.IsNullOrEmpty(pGUID.stringValue)))
+        //
+        // Draw as ObjectField
+        //
+        var component = GUIDComponent.Find(pGUID.stringValue);
+
+        var useObjectField = false;
+        useObjectField |= component != null;
+        useObjectField |= string.IsNullOrEmpty(pGUID.stringValue);
+        useObjectField &= !pGUID.hasMultipleDifferentValues;
+
+        if (useObjectField)
         {
-            EditorGUI.BeginChangeCheck();
-            var value = EditorGUI.ObjectField(position, label, currentValue, typeof(GUIDComponent), true);
-            if (EditorGUI.EndChangeCheck())
+            var value = (GUIDComponent)EditorGUI.ObjectField(position, label, component, typeof(GUIDComponent), true);
+            if (value != component)
             {
-                var component = (GUIDComponent)value;
-                if (component != null)
+                if (value != null)
                 {
-                    pGUID.stringValue = component.Value;
-                    pName.stringValue = component.name;
-                    pSceneAsset.objectReferenceValue = AssetDatabase.LoadAssetAtPath<SceneAsset>(component.gameObject.scene.path); // XXX: Unsaved Scene
-                    pSceneName.stringValue = component.gameObject.scene.name;
+                    pGUID.stringValue = value.Value;
+                    pName.stringValue = value.name;
+                    // XXX: Unsaved Scene
+                    pSceneAsset.objectReferenceValue = AssetDatabase.LoadAssetAtPath<SceneAsset>(value.gameObject.scene.path); 
+                    pSceneName.stringValue = value.gameObject.scene.name;
                 }
                 else
                 {
@@ -108,55 +115,60 @@ public class GUIDRefereceDrawer : PropertyDrawer
                     pSceneAsset.objectReferenceValue = null;
                     pSceneName.stringValue = null;
                 }
+
+                property.serializedObject.ApplyModifiedProperties();
             }
-        }
-        else
-        {
-            EditorGUI.PrefixLabel(position, label);
-
-            var content = new GUIContent();
-
-            if (pGUID.hasMultipleDifferentValues)
-            {
-                // Mixed Values
-                content.text = "—";
-            }
-            else
-            {
-                content.image = EditorGUIUtility.ObjectContent(property.serializedObject.targetObject, typeof(GUIDComponent)).image;
-                content.text = $"{pName.stringValue} ({ObjectNames.NicifyVariableName(nameof(GUIDComponent))})";
-            }
-
-            using (new EditorGUIUtility.IconSizeScope(new Vector2(12, 12)))
-            {
-                // Draw
-                var evt = Event.current;
-                if (evt.type == EventType.MouseDown && evt.button == 0 && position.Contains(evt.mousePosition))
-                {
-                    if (evt.clickCount == 1)
-                    {
-                        EditorGUIUtility.PingObject(pSceneAsset.objectReferenceValue);
-                    }
-                    else
-                    {
-                        OpenSceneAndPing();
-                    }
-
-                    evt.Use();
-                }
-
-                position.xMin += EditorGUIUtility.labelWidth + 2;
-                GUI.Button(position, content, EditorStyles.objectField);
-
-                var buttonPosition = new Rect(position.xMax - 19, position.y, 19, position.height);
-                var buttonRect = objectFieldButton.margin.Remove(buttonPosition);
-                GUI.Button(buttonRect, GUIContent.none, objectFieldButton);
-            }
-
         }
 
         //
-        // Context
+        // Draw as Custom
+        //
+        else
+        {
+            var controlId = GUIUtility.GetControlID(FocusType.Passive, position);
+            
+            var totalPos = position;
+            var fieldPos = position; fieldPos.xMin += EditorGUIUtility.labelWidth + 2;
+            var buttonPos = objectFieldButton.margin.Remove(new Rect(position.xMax - 19, position.y, 19, position.height));
+
+            switch (Event.current.type)
+            {
+                case EventType.MouseDown:
+                    if (Event.current.button == 0 && totalPos.Contains(Event.current.mousePosition))
+                    {
+                        if (Event.current.clickCount == 1)
+                            EditorGUIUtility.PingObject(pSceneAsset.objectReferenceValue);
+                        else
+                            OpenSceneAndPing();
+
+                        Event.current.Use();
+                    }
+                    break;
+
+                case EventType.Repaint:
+
+                    // EditorGUI.BeginHandleMixedValueContentColor();
+
+                    var content = new GUIContent();
+                    content.image = AssetPreview.GetMiniThumbnail(property.serializedObject.targetObject); // XXX: Type
+                    content.text = $"{pName.stringValue} ({ObjectNames.NicifyVariableName(nameof(GUIDComponent))})";
+
+                    using (new EditorGUIUtility.IconSizeScope(new Vector2(12, 12)))
+                    {
+                        // Prefix
+                        EditorGUI.PrefixLabel(totalPos, controlId, new GUIContent(label.text + "*"));
+                        // Field
+                        EditorStyles.objectField.Draw(fieldPos, content, controlId, DragAndDrop.activeControlID == controlId, fieldPos.Contains(Event.current.mousePosition));
+                        // Button
+                        objectFieldButton.Draw(buttonPos, GUIContent.none, controlId, DragAndDrop.activeControlID == controlId, buttonPos.Contains(Event.current.mousePosition));
+                    }
+
+                    break;
+            }
+        }
+
+        //
+        // Context Menu (Actions)
         //
 
         void CopyGUID()
@@ -175,7 +187,7 @@ public class GUIDRefereceDrawer : PropertyDrawer
         {
             OpenScene();
 
-            // XXX: Delay to scene opened?
+            // TODO: Should we delay until scene is loaded?
             EditorApplication.delayCall += () =>
             {
                 var targetGUID = pGUID.stringValue;
@@ -233,7 +245,7 @@ public class GUIDRefereceDrawer : PropertyDrawer
             if (scene.isDirty)
                 return false;
             
-            // deny if it's the same scene
+            // deny if there is only current scene
             var hasOnlyScene = property
                 .serializedObject
                 .targetObjects
@@ -256,162 +268,5 @@ public class GUIDRefereceDrawer : PropertyDrawer
             menu.AddDisabledItem(new GUIContent(label));
     }
 }
-
-/*
-[CustomPropertyDrawer(typeof(GUIDReference<>))]
-public class GUIDRefereceDrawer : PropertyDrawer
-{
-    private const string kScene = "_sceneAsset";
-    private const string kGUID = "_guid";
-    private const string kName = "_guidName";
-
-    private GUIStyle m_ButtonIcon;
-    private GUIStyle m_DropdownMissing;
-    private GUIStyle m_DropdownNormal;
-
-    public GUIDRefereceDrawer()
-    {
-        m_ButtonIcon = new GUIStyle(GUI.skin.button);
-        m_ButtonIcon.padding = new RectOffset();
-
-        m_DropdownNormal = EditorStyles.popup;
-        m_DropdownMissing = new GUIStyle(m_DropdownNormal);
-        m_DropdownMissing.normal.textColor = 
-        m_DropdownMissing.hover.textColor = 
-        m_DropdownMissing.active.textColor = 
-        m_DropdownMissing.focused.textColor = new Color(1f, 0.25f, 0.25f, 1); 
-    }
-
-    public override void OnGUI(Rect position, SerializedProperty property, GUIContent label)
-    {
-        var scene = property.FindPropertyRelative(kScene);
-
-        EditorGUI.PrefixLabel(position, label);
-        position.xMin += EditorGUIUtility.labelWidth + EditorGUIUtility.standardVerticalSpacing;
-        position.width -= EditorGUIUtility.singleLineHeight + 2* EditorGUIUtility.standardVerticalSpacing;
-        position.width /= 2;
-        EditorGUI.PropertyField(position, scene, GUIContent.none);
-
-        position.x = position.xMax + EditorGUIUtility.standardVerticalSpacing;
-        DropdownMenu(position, property);
-
-        EditorGUI.BeginDisabledGroup(IsTogglable(scene, out var sceneIsLoaded) == false);
-        position.x = position.xMax + EditorGUIUtility.standardVerticalSpacing;
-        position.width = EditorGUIUtility.singleLineHeight;
-        if (GUI.Button(position, sceneIsLoaded ? "\u2191" : "\u2193", m_ButtonIcon)) Toggle(scene);
-        EditorGUI.EndDisabledGroup();
-    }
-
-    private void DropdownMenu(Rect position, SerializedProperty property)
-    {
-        IsTogglable(property.FindPropertyRelative(kScene), out var hasScene);
-
-        var options = FindGUIDs(property);
-
-        var guidProp = property.FindPropertyRelative(kGUID);
-        var nameProp = property.FindPropertyRelative(kName);
-
-        var dropdownLabel = nameProp.stringValue;
-        var dropdownStyle = hasScene && !options.ContainsKey(guidProp.stringValue) ? m_DropdownMissing : m_DropdownNormal;
-
-        EditorGUI.BeginDisabledGroup(hasScene == false);
-        var dropdown = EditorGUI.DropdownButton(position, new GUIContent(nameProp.stringValue), FocusType.Passive, dropdownStyle);
-        EditorGUI.EndDisabledGroup();
-
-        if (dropdown)
-        {
-            var menu = new GenericMenu();
-
-            foreach (var pair in options)
-            {
-                if (pair.Key == guidProp.stringValue)
-                    menu.AddDisabledItem(new GUIContent(pair.Value));
-                else
-                    menu.AddItem(new GUIContent(pair.Value), false, OnGUIDSelect, pair);
-            }
-
-            menu.DropDown(position);
-        }
-
-        void OnGUIDSelect(object ctx)
-        {
-            var data = (KeyValuePair<string, string>)ctx;
-            guidProp.stringValue = data.Key;
-            nameProp.stringValue = data.Value;
-            guidProp.serializedObject.ApplyModifiedPropertiesWithoutUndo();
-        }
-    }
-
-    // Static
-
-    private static bool IsTogglable(SerializedProperty property, out bool mode)
-    {
-        var scenePath = AssetDatabase.GetAssetPath(property.objectReferenceValue);
-        var scene = EditorSceneManager.GetSceneByPath(scenePath);
-        mode = scene.IsValid();
-
-        var target = property.serializedObject.targetObject;
-        if (target is Component)
-        {
-            var component = (Component)target;
-            if (component.gameObject.scene == scene)
-                return false;
-        }
-
-        return true;
-    }
-
-    private static void Toggle(SerializedProperty property)
-    {
-        var scenePath = AssetDatabase.GetAssetPath(property.objectReferenceValue);
-        var scene = EditorSceneManager.GetSceneByPath(scenePath);
-        
-        if (scene.IsValid())
-            EditorSceneManager.CloseScene(scene, true);
-        else
-            EditorSceneManager.OpenScene(scenePath, UnityEditor.SceneManagement.OpenSceneMode.Additive);
-    }
-
-    private static Dictionary<string, string> FindGUIDs(SerializedProperty property)
-    {
-        var result = new Dictionary<string, string>();
-
-        var sceneProp = property.FindPropertyRelative(kScene);
-        var scenePath = AssetDatabase.GetAssetPath(sceneProp.objectReferenceValue);
-        var scene = EditorSceneManager.GetSceneByPath(scenePath);
-
-        var type = GetTypeOf(property).GenericTypeArguments[0];
-
-        var components = UnityEngine.Object.FindObjectsOfType<GUIDComponent>();
-        foreach (var component in components)
-            if (component.gameObject.scene == scene)
-                if (component.TryGetComponent(type, out var _))
-                    result.Add(component.Value, component.name);
-
-        return result;
-    }
-
-    private static Type GetTypeOf(SerializedProperty prop)
-    {
-        var path = prop.propertyPath.Split('.');
-        var type = prop.serializedObject.targetObject.GetType();
-        
-        for(int i = 0; i < path.Length; i++)
-        {
-            if (path[i] == "Array")
-            {
-                i++;
-                type = type.GetElementType();
-            }                   
-            else
-            {
-                type = type.GetField(path[i], BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.FlattenHierarchy | BindingFlags.Instance).FieldType; 
-            }
-        }
-
-        return type;
-    }
-}
-*/
 
 #endif
