@@ -176,7 +176,7 @@ public class GUIDRefereceDrawer : PropertyDrawer
                     // Field
                     var prevColor = GUI.contentColor;
                     if (pGUID.hasMultipleDifferentValues) GUI.contentColor *= s_MixedValueContentColor;
-                    EditorStyles.objectField.Draw(fieldPos, GetContent(pGUID, pName), controlId, DragAndDrop.activeControlID == controlId, fieldPos.Contains(Event.current.mousePosition));
+                    EditorStyles.objectField.Draw(fieldPos, GetContent(pGUID, pName, pSceneAsset), controlId, DragAndDrop.activeControlID == controlId, fieldPos.Contains(Event.current.mousePosition));
                     GUI.contentColor = prevColor;
 
                     // Button
@@ -319,14 +319,41 @@ public class GUIDRefereceDrawer : PropertyDrawer
         }
     }
 
-    private static GUIContent GetContent(SerializedProperty guid, SerializedProperty name)
+    private static GUIContent GetContent(SerializedProperty guid, SerializedProperty name, SerializedProperty scene)
     {
         if (guid.hasMultipleDifferentValues)
             return s_MixedValueContent;
-        else if (string.IsNullOrEmpty(guid.stringValue))
-            return new GUIContent($"None ({ObjectNames.NicifyVariableName(nameof(GUIDComponent))})");
-        else
-            return new GUIContent($"{name.stringValue} ({ObjectNames.NicifyVariableName(nameof(GUIDComponent))})", icon);
+
+        var className = ObjectNames.NicifyVariableName(nameof(GUIDComponent));
+
+        if (string.IsNullOrEmpty(guid.stringValue))
+            return new GUIContent($"None ({className})");
+
+        var missing =
+            scene.objectReferenceValue == null ||
+            IsLoaded(scene) && GUIDComponent.Find(guid.stringValue) == null;
+        
+        if (missing)
+            return new GUIContent($"Missing ({className})");
+        
+        return new GUIContent($"{name.stringValue} ({className})", icon);
+    }
+
+    private static bool IsLoaded(SerializedProperty scene)
+    {
+        var sceneAsset = (SceneAsset)scene.objectReferenceValue;
+        if (sceneAsset == null)
+            return false;
+
+        var scenePath = AssetDatabase.GetAssetPath(sceneAsset);
+        if (scenePath == null)
+            return false;
+        
+        var sceneObject = EditorSceneManager.GetSceneByPath(scenePath);
+        if (sceneObject.IsValid() == false)
+            return false;
+
+        return sceneObject.isLoaded;
     }
 
     private static void AddItem(GenericMenu menu, string name, bool enabled, GenericMenu.MenuFunction action)
