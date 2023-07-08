@@ -66,7 +66,7 @@ public partial class GUIDComponent
 
             // we don't care about duplicates and/or previous values here
             // this is just editor time and sActive is not serialized
-            sActive.TryAdd(m_Value, this);
+            sActive[m_Value] = this;
         }
         else
         {
@@ -98,6 +98,8 @@ public partial class GUIDComponent
     {
         if (gameObject.scene.path == string.Empty)
             return false;
+
+        // TODO: EditorUtility.IsPersistent ?
 
         var type = PrefabUtility.GetPrefabAssetType(this);
         if (type == PrefabAssetType.NotAPrefab)

@@ -45,6 +45,27 @@ public partial class GUIDReference : ISerializationCallbackReceiver
 [CustomPropertyDrawer(typeof(GUIDReference))]
 public class GUIDRefereceDrawer : PropertyDrawer
 {
+    private static readonly GUIContent s_MixedValueContent = EditorGUIUtility.TrTextContent("\u2014", "Mixed Values");
+    private static readonly Color s_MixedValueContentColor = new Color(1, 1, 1, 0.5f);
+
+    private static Texture2D iconCache;
+    private static Texture2D icon
+    {
+        get
+        {
+            if (iconCache == null)
+            {
+                var scriptType = typeof(GUIDComponent);
+                var scriptAsset = AssetDatabase.FindAssets(scriptType.Name + " t:" + nameof(MonoScript));
+                var scriptPath = AssetDatabase.GUIDToAssetPath(scriptAsset[0]);
+                var scriptObject = AssetDatabase.LoadAssetAtPath(scriptPath, typeof(MonoScript));
+                iconCache = AssetPreview.GetMiniThumbnail(scriptObject);
+            }
+
+            return iconCache;
+        }
+    }
+
     private static GUIStyle objectFieldButtonCache;
     private static GUIStyle objectFieldButton
     {
@@ -88,42 +109,6 @@ public class GUIDRefereceDrawer : PropertyDrawer
         //
         // Draw as ObjectField
         //
-        var component = GUIDComponent.Find(pGUID.stringValue);
-
-        var useObjectField = false;
-        useObjectField |= component != null;
-        useObjectField |= string.IsNullOrEmpty(pGUID.stringValue);
-        useObjectField &= !pGUID.hasMultipleDifferentValues;
-
-        if (useObjectField)
-        {
-            var value = (GUIDComponent)EditorGUI.ObjectField(position, label, component, typeof(GUIDComponent), true);
-            if (value != component)
-            {
-                if (value != null)
-                {
-                    pGUID.stringValue = value.Value;
-                    pName.stringValue = value.name;
-                    // XXX: Unsaved Scene
-                    pSceneAsset.objectReferenceValue = AssetDatabase.LoadAssetAtPath<SceneAsset>(value.gameObject.scene.path); 
-                    pSceneName.stringValue = value.gameObject.scene.name;
-                }
-                else
-                {
-                    pGUID.stringValue = string.Empty;
-                    pName.stringValue = string.Empty;
-                    pSceneAsset.objectReferenceValue = null;
-                    pSceneName.stringValue = null;
-                }
-
-                property.serializedObject.ApplyModifiedProperties();
-            }
-        }
-
-        //
-        // Draw as Custom
-        //
-        else
         {
             var controlId = GUIUtility.GetControlID(FocusType.Passive, position);
             
@@ -133,35 +118,72 @@ public class GUIDRefereceDrawer : PropertyDrawer
 
             switch (Event.current.type)
             {
+                case EventType.DragUpdated:
+                    if (fieldPos.Contains(Event.current.mousePosition) && TryGetGUID(DragAndDrop.objectReferences, out _))
+                    {
+                        DragAndDrop.visualMode = DragAndDropVisualMode.Generic;
+                        DragAndDrop.activeControlID = controlId;
+                        Event.current.Use();
+                    }
+                    else
+                    {
+                        DragAndDrop.activeControlID = 0;
+                    }
+                    break;
+                
+                case EventType.DragPerform:
+                    if (TryGetGUID(DragAndDrop.objectReferences, out var newValue))
+                    {
+                        SetValue(newValue);
+                        GUI.changed = true;
+                        DragAndDrop.AcceptDrag();
+                        DragAndDrop.activeControlID = 0;
+                        Event.current.Use();
+                    }
+                    break;
+
                 case EventType.MouseDown:
                     if (Event.current.button == 0 && totalPos.Contains(Event.current.mousePosition))
                     {
-                        if (Event.current.clickCount == 1)
-                            EditorGUIUtility.PingObject(pSceneAsset.objectReferenceValue);
-                        else
-                            OpenSceneAndPing();
-
+                        if (buttonPos.Contains(Event.current.mousePosition))
+                        {
+                            // EditorSceneManager.preventCrossSceneReferences = false;
+                            EditorGUIUtility.ShowObjectPicker<GUIDComponent>(null, true, string.Empty, controlId);
+                            Event.current.Use();
+                        }
+                        else if (fieldPos.Contains(Event.current.mousePosition))
+                        {
+                            Ping(Event.current.clickCount > 1);
+                            Event.current.Use();
+                        }
+                    }
+                    break;
+                
+                case EventType.ExecuteCommand:
+                    if (Event.current.commandName == "ObjectSelectorUpdated" && EditorGUIUtility.GetObjectPickerControlID() == controlId)
+                    {
+                        SetValue((GUIDComponent)EditorGUIUtility.GetObjectPickerObject());
+                        GUI.changed = true;
                         Event.current.Use();
                     }
                     break;
 
                 case EventType.Repaint:
 
-                    // EditorGUI.BeginHandleMixedValueContentColor();
+                    // Prefix
+                    EditorGUI.PrefixLabel(totalPos, controlId, label);
 
-                    var content = new GUIContent();
-                    content.image = AssetPreview.GetMiniThumbnail(property.serializedObject.targetObject); // XXX: Type
-                    content.text = $"{pName.stringValue} ({ObjectNames.NicifyVariableName(nameof(GUIDComponent))})";
+                    // Field
+                    var prevColor = GUI.contentColor;
+                    if (pGUID.hasMultipleDifferentValues) GUI.contentColor *= s_MixedValueContentColor;
+                    EditorStyles.objectField.Draw(fieldPos, GetContent(pGUID, pName), controlId, DragAndDrop.activeControlID == controlId, fieldPos.Contains(Event.current.mousePosition));
+                    GUI.contentColor = prevColor;
 
-                    using (new EditorGUIUtility.IconSizeScope(new Vector2(12, 12)))
-                    {
-                        // Prefix
-                        EditorGUI.PrefixLabel(totalPos, controlId, new GUIContent(label.text + "*"));
-                        // Field
-                        EditorStyles.objectField.Draw(fieldPos, content, controlId, DragAndDrop.activeControlID == controlId, fieldPos.Contains(Event.current.mousePosition));
-                        // Button
-                        objectFieldButton.Draw(buttonPos, GUIContent.none, controlId, DragAndDrop.activeControlID == controlId, buttonPos.Contains(Event.current.mousePosition));
-                    }
+                    // Button
+                    var prevSize = EditorGUIUtility.GetIconSize();
+                    EditorGUIUtility.SetIconSize(new Vector2(12, 12));
+                    objectFieldButton.Draw(buttonPos, GUIContent.none, controlId, DragAndDrop.activeControlID == controlId, buttonPos.Contains(Event.current.mousePosition));
+                    EditorGUIUtility.SetIconSize(prevSize);
 
                     break;
             }
@@ -183,17 +205,35 @@ public class GUIDRefereceDrawer : PropertyDrawer
             EditorSceneManager.OpenScene(scenePath, UnityEditor.SceneManagement.OpenSceneMode.Additive);
         }
 
-        void OpenSceneAndPing()
+        void Ping(bool doubleClick)
         {
-            OpenScene();
+            if (pGUID.hasMultipleDifferentValues)
+                return;
 
-            // TODO: Should we delay until scene is loaded?
-            EditorApplication.delayCall += () =>
+            var targetGUID = pGUID.stringValue;
+            var target = GUIDComponent.Find(targetGUID);
+
+            if (target != null)
             {
-                var targetGUID = pGUID.stringValue;
-                var target = GUIDComponent.Find(targetGUID);
-                EditorGUIUtility.PingObject(target);
-            };
+                if (!doubleClick) EditorGUIUtility.PingObject(target);
+                else Selection.activeObject = target;
+            }
+            else
+            {
+                if (!doubleClick) EditorGUIUtility.PingObject(pSceneAsset.objectReferenceValue);
+                else
+                {
+                    OpenScene();
+
+                    // TODO: Should we delay until scene is loaded?
+                    EditorApplication.delayCall += () =>
+                    {
+                        var targetGUID = pGUID.stringValue;
+                        var target = GUIDComponent.Find(targetGUID);
+                        EditorGUIUtility.PingObject(target);
+                    };
+                }
+            }
         }
 
         void CloseScene()
@@ -256,9 +296,40 @@ public class GUIDRefereceDrawer : PropertyDrawer
 
             return true;
         }
+
+        void SetValue(GUIDComponent component)
+        {
+            if (component != null)
+            {
+                pGUID.stringValue = component.Value;
+                pName.stringValue = component.name;
+                // XXX: Unsaved Scene
+                pSceneAsset.objectReferenceValue = AssetDatabase.LoadAssetAtPath<SceneAsset>(component.gameObject.scene.path); 
+                pSceneName.stringValue = component.gameObject.scene.name;
+            }
+            else
+            {
+                pGUID.stringValue = string.Empty;
+                pName.stringValue = string.Empty;
+                pSceneAsset.objectReferenceValue = null;
+                pSceneName.stringValue = null;
+            }
+
+            property.serializedObject.ApplyModifiedProperties();
+        }
     }
 
-    private void AddItem(GenericMenu menu, string name, bool enabled, GenericMenu.MenuFunction action)
+    private static GUIContent GetContent(SerializedProperty guid, SerializedProperty name)
+    {
+        if (guid.hasMultipleDifferentValues)
+            return s_MixedValueContent;
+        else if (string.IsNullOrEmpty(guid.stringValue))
+            return new GUIContent($"None ({ObjectNames.NicifyVariableName(nameof(GUIDComponent))})");
+        else
+            return new GUIContent($"{name.stringValue} ({ObjectNames.NicifyVariableName(nameof(GUIDComponent))})", icon);
+    }
+
+    private static void AddItem(GenericMenu menu, string name, bool enabled, GenericMenu.MenuFunction action)
     {
         var label = EditorGUIUtility.TrTextContent(name).text;
 
@@ -266,6 +337,27 @@ public class GUIDRefereceDrawer : PropertyDrawer
             menu.AddItem(new GUIContent(label), false, action);
         else
             menu.AddDisabledItem(new GUIContent(label));
+    }
+
+    private static bool TryGetGUID(UnityEngine.Object[] references, out GUIDComponent result)
+    {
+        result = null;
+
+        for (var i = 0; i < references.Length; i++)
+        {
+            switch (references[i])
+            {
+                case GameObject gameObject:
+                    gameObject.TryGetComponent<GUIDComponent>(out result);
+                    break;
+                
+                case GUIDComponent component:
+                    result = component;
+                    break;
+            }
+        }
+
+        return result != null;
     }
 }
 
