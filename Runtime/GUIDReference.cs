@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 #if UNITY_EDITOR
 using System.Reflection;
@@ -32,13 +33,13 @@ public partial class GUIDReference
 
 public partial class GUIDReference : ISerializationCallbackReceiver
 {
-    [SerializeField] private SceneAsset m_SceneAsset;
-    [SerializeField] private string m_ObjectName;
+    [SerializeField, FormerlySerializedAs("m_SceneAsset")] private SceneAsset m_EditorSceneAsset;
+    [SerializeField, FormerlySerializedAs("m_ObjectName")] private string m_EditorGameObjectName;
 
     public void OnAfterDeserialize() { }
     public void OnBeforeSerialize()
     {
-        m_Scene = m_SceneAsset ? m_SceneAsset.name : null;
+        m_Scene = m_EditorSceneAsset ? m_EditorSceneAsset.name : null;
     }
 }
 
@@ -84,11 +85,10 @@ public class GUIDRefereceDrawer : PropertyDrawer
 
     public override void OnGUI(Rect position, SerializedProperty property, GUIContent label)
     {
-        var pSceneName = property.FindPropertyRelative("m_Scene");
-        var pSceneAsset = property.FindPropertyRelative("m_SceneAsset");
         var pGUID = property.FindPropertyRelative("m_GUID");
-        var pName = property.FindPropertyRelative("m_ObjectName");
-
+        var pSceneName = property.FindPropertyRelative("m_Scene");
+        var pSceneAsset = property.FindPropertyRelative("m_EditorSceneAsset");
+        var pName = property.FindPropertyRelative("m_EditorGameObjectName");
 
         //
         // Context Menu
@@ -148,7 +148,7 @@ public class GUIDRefereceDrawer : PropertyDrawer
                         if (buttonPos.Contains(Event.current.mousePosition))
                         {
                             // EditorSceneManager.preventCrossSceneReferences = false;
-                            EditorGUIUtility.ShowObjectPicker<GUIDComponent>(null, true, string.Empty, controlId);
+                            EditorGUIUtility.ShowObjectPicker<GUIDComponent>(GUIDComponent.Find(pGUID.stringValue), true, string.Empty, controlId);
                             Event.current.Use();
                         }
                         else if (fieldPos.Contains(Event.current.mousePosition))
@@ -200,8 +200,10 @@ public class GUIDRefereceDrawer : PropertyDrawer
 
         void OpenScene()
         {
-            var sceneAsset = (SceneAsset)pSceneAsset.objectReferenceValue;
-            var scenePath = AssetDatabase.GetAssetPath(sceneAsset);
+            var scenePath = AssetDatabase.GetAssetPath(pSceneAsset.objectReferenceValue);
+            if (string.IsNullOrEmpty(scenePath))
+                return;
+
             EditorSceneManager.OpenScene(scenePath, UnityEditor.SceneManagement.OpenSceneMode.Additive);
         }
 
@@ -329,11 +331,10 @@ public class GUIDRefereceDrawer : PropertyDrawer
         if (string.IsNullOrEmpty(guid.stringValue))
             return new GUIContent($"None ({className})");
 
-        var missing =
-            scene.objectReferenceValue == null ||
-            IsLoaded(scene) && GUIDComponent.Find(guid.stringValue) == null;
-        
-        if (missing)
+        if (scene.objectReferenceValue == null)
+            return new GUIContent($"Missing ({className})");
+
+        if (IsLoaded(scene) && GUIDComponent.Find(guid.stringValue) == null)
             return new GUIContent($"Missing ({className})");
         
         return new GUIContent($"{name.stringValue} ({className})", icon);
