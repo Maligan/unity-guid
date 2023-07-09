@@ -7,7 +7,7 @@ using UnityEditor;
 
 namespace UnityEngine
 {
-    [AddComponentMenu("Miscellaneous/" + nameof(GUID))]
+    [AddComponentMenu("Miscellaneous/GUID")]
     [DisallowMultipleComponent]
     [DefaultExecutionOrder(int.MinValue)]
     public partial class GUIDComponent : MonoBehaviour
