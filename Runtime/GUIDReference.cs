@@ -144,18 +144,15 @@ namespace UnityEngine
                             if (buttonPos.Contains(Event.current.mousePosition))
                             {
                                 EditorGUIUtility.ShowObjectPicker<GUIDComponent>(GUIDComponent.Find(pGUID.stringValue), true, string.Empty, controlId);
-                                Event.current.Use();
                             }
                             else if (fieldPos.Contains(Event.current.mousePosition))
                             {
                                 Ping(Event.current.clickCount > 1);
-                                Event.current.Use();
                             }
-                            else
-                            {
-                                GUIUtility.keyboardControl = controlId;
-                                Event.current.Use();
-                            }
+
+                            // focus control in any case
+                            GUIUtility.keyboardControl = controlId;
+                            Event.current.Use();
                         }
                         break;
                     
