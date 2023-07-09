@@ -151,9 +151,40 @@ namespace UnityEngine
                                 Ping(Event.current.clickCount > 1);
                                 Event.current.Use();
                             }
+                            else
+                            {
+                                GUIUtility.keyboardControl = controlId;
+                                Event.current.Use();
+                            }
                         }
                         break;
                     
+                    case EventType.KeyDown:
+                        if (GUIUtility.keyboardControl == controlId)
+                        {
+                            var hasModifier = (Event.current.alt || Event.current.shift || Event.current.command || Event.current.control);
+                            if (hasModifier)
+                                break;
+
+                            var cmdDelete = Event.current.keyCode == KeyCode.Backspace || Event.current.keyCode == KeyCode.Delete;
+                            if (cmdDelete)
+                            {
+                                SetValue(null);
+                                GUI.changed = true;
+                                Event.current.Use();
+                                break;
+                            }
+
+                            var cmdSelect = Event.current.keyCode == KeyCode.Space || Event.current.keyCode == KeyCode.Return;
+                            if (cmdSelect)
+                            {
+                                EditorGUIUtility.ShowObjectPicker<GUIDComponent>(GUIDComponent.Find(pGUID.stringValue), true, string.Empty, controlId);
+                                Event.current.Use();
+                                break;
+                            }
+                        }
+                        break;
+
                     case EventType.ExecuteCommand:
                         if (Event.current.commandName == "ObjectSelectorUpdated" && EditorGUIUtility.GetObjectPickerControlID() == controlId)
                         {
@@ -173,7 +204,7 @@ namespace UnityEngine
 
                         // Field
                         var prevColor = GUI.contentColor;
-                        if (pGUID.hasMultipleDifferentValues) GUI.contentColor *= s_MixedValueContentColor;
+                        if (pGUID.hasMultipleDifferentValues || pSceneAsset.objectReferenceValue && !IsLoaded(pSceneAsset)) GUI.contentColor *= s_MixedValueContentColor;
                         EditorStyles.objectField.Draw(fieldPos, GetContent(pGUID, pName, pSceneAsset), controlId, DragAndDrop.activeControlID == controlId, fieldPos.Contains(Event.current.mousePosition));
                         GUI.contentColor = prevColor;
 
