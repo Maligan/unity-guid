@@ -97,20 +97,7 @@ namespace UnityEngine
 
         private bool IsInstance()
         {
-            if (gameObject.scene.path == string.Empty)
-                return false;
-
-            // TODO: EditorUtility.IsPersistent ?
-
-            var type = PrefabUtility.GetPrefabAssetType(this);
-            if (type == PrefabAssetType.NotAPrefab)
-                return true;
-
-            var status = PrefabUtility.GetPrefabInstanceStatus(this);
-            if (status == PrefabInstanceStatus.Connected)
-                return true;
-
-            return false;
+            return !string.IsNullOrEmpty(gameObject.scene.path);
         }
 
         [CustomEditor(typeof(GUIDComponent))]
