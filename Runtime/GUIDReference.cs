@@ -331,9 +331,9 @@ namespace UnityEngine
                 {
                     pGUID.stringValue = component.Value;
                     pName.stringValue = component.name;
-                    // XXX: Unsaved Scene
-                    pSceneAsset.objectReferenceValue = AssetDatabase.LoadAssetAtPath<SceneAsset>(component.gameObject.scene.path); 
                     pSceneName.stringValue = component.gameObject.scene.name;
+                    // nb! unsaved scene isn't possible because GUID doesn't exist for unsaved scene
+                    pSceneAsset.objectReferenceValue = AssetDatabase.LoadAssetAtPath<SceneAsset>(component.gameObject.scene.path); 
                 }
                 else
                 {

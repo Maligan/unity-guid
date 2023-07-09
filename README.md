@@ -1,5 +1,8 @@
-# GUID Component & Reference
-Unity GUID based cross scene reference package. This package is alternate to official Unity-Technologies' implementation:
+# GUID Component & Reference [![openupm](https://img.shields.io/npm/v/com.maligan.guid?label=openupm&registry_uri=https://package.openupm.com)](https://openupm.com/packages/com.maligan.guid/)
+
+Unity GUID based cross-scene reference component with robust GUID generation and quality UX.
+
+Please note, Unity-Technologies has its own implementation:
 
 - https://github.com/Unity-Technologies/guid-based-reference
 
@@ -27,11 +30,20 @@ var component = GUIDComponent.Find("OBJECT-GUID-HERE");
 
 - **Handy** - Open/Close referenced scenes from property context menu or with double-click.
 
-- **Neat** - `GUIDReference` property drawer looks like common object field.
-No more ugly hand made multiline properties.
+- **Neat** - `GUIDReference` property drawer looks like general object field.
 
 ## Installation
 
 ```sh
+# 1. Via OpenUPM
 openupm add com.maligan.guid
+
+# 2. Via PackageManger & GitHub URL
+https://github.com/maligan/unity-guid.git
+
+# 3. Via copy this repository content into Packages/ folder
 ```
+
+## Gallery
+
+![](Documentation~/screen_1.png)
