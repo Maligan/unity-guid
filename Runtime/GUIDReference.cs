@@ -90,6 +90,26 @@ namespace UnityEngine
             var pName = property.FindPropertyRelative("m_EditorGameObjectName");
 
             //
+            // Sync
+            //
+            if (!string.IsNullOrEmpty(pGUID.stringValue))
+            {
+                var component = GUIDComponent.Find(pGUID.stringValue);
+                if (component != null && component.name != pName.stringValue)
+                {
+                    pName.stringValue = component.name;
+                    property.serializedObject.ApplyModifiedProperties();
+                }
+
+                var sceneAsset = (SceneAsset)pSceneAsset.objectReferenceValue;
+                if (sceneAsset != null && sceneAsset.name != pSceneName.stringValue)
+                {
+                    pSceneName.stringValue = sceneAsset.name;
+                    property.serializedObject.ApplyModifiedProperties();
+                }
+            }
+
+            //
             // Draw as ObjectField
             //
             {
