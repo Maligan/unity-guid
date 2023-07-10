@@ -40,9 +40,7 @@ namespace UnityEngine
 #if UNITY_EDITOR
     public partial class GUIDComponent
     {
-        [SerializeField]
-        private int m_EditorInstanceId1;
-        private int m_EditorInstanceId2;
+        private int m_EditorInstanceId;
         private string m_EditorValue;
 
         private void Reset()
@@ -75,8 +73,7 @@ namespace UnityEngine
             }
 
             m_EditorValue = m_Value;
-            m_EditorInstanceId1 = GetInstanceID();
-            m_EditorInstanceId2 = GetInstanceID();
+            m_EditorInstanceId = GetInstanceID();
         }
 
         private bool IsDuplicate()
@@ -84,8 +81,8 @@ namespace UnityEngine
             // If we are deserializing object during scene loading
             // when it's not an duplicate but just loading scene into memory
             return gameObject.scene.isLoaded
-                && m_EditorInstanceId1 != GetInstanceID()
-                && m_EditorInstanceId2 != GetInstanceID();
+                && string.IsNullOrEmpty(m_Value) == false
+                && m_EditorInstanceId != GetInstanceID();
         }
 
         private bool IsReverted()
