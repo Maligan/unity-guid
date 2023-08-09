@@ -18,10 +18,10 @@ namespace UnityEngine
 
         public static T Find<T>(string guid)
         {
-            if (sActive.TryGetValue(guid, out var component) && component != null)
+            if (!string.IsNullOrEmpty(guid) && sActive.TryGetValue(guid, out var component) && component != null)
                 return component.GetComponent<T>();
 
-            return default(T);
+            return default;
         }
 
         public string Value => m_Value;
