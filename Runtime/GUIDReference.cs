@@ -208,9 +208,14 @@ namespace UnityEngine
                             if (TryGetGUID(new [] { EditorGUIUtility.GetObjectPickerObject() }, out var value))
                             {
                                 SetValue(value);
-                                GUI.changed = true;
-                                Event.current.Use();
                             }
+                            else
+                            {
+                                SetValue(null);
+                            }
+
+                            GUI.changed = true;
+                            Event.current.Use();
                         }
                         break;
 
